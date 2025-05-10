@@ -14,10 +14,12 @@ import time
 import cv2
 import tkinter as tk
 from tkinter import filedialog, ttk, messagebox
-from PIL import Image, ImageTk
+from PIL import Image, ImageTk, ImageDraw
 import numpy as np
 import threading
 from pathlib import Path
+from ttkthemes import ThemedTk
+import tkinter.font as tkFont
 
 # Add parent directory to path to import from project
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -64,18 +66,31 @@ class CarDetectionApp:
         
         # Load model
         self.load_model()
+        
+        # Create menu
+        self.create_menu()
     
     def create_ui(self):
         """Create the user interface"""
-        # Main layout
-        self.main_frame = ttk.Frame(self.root, padding=10)
+        # Thiết lập style
+        self.setup_styles()
+        
+        # Thêm gradient header
+        self.create_gradient_header(self.root, "Car Detection using YOLOv8")
+        
+        # Main layout với padding cải thiện
+        self.main_frame = ttk.Frame(self.root, padding=15)
         self.main_frame.pack(fill=tk.BOTH, expand=True)
         
-        # Left panel (controls)
-        self.left_panel = ttk.Frame(self.main_frame, padding=10, width=300)
-        self.left_panel.pack(side=tk.LEFT, fill=tk.Y, expand=False)
+        # Left panel (controls) với viền và bo góc
+        self.left_panel = ttk.Frame(self.main_frame, padding=10, width=300, relief=tk.RIDGE, borderwidth=1)
+        self.left_panel.pack(side=tk.LEFT, fill=tk.Y, expand=False, padx=(0, 10))
         
-        # Model section
+        # Setup theme switcher
+        self.theme_mode = tk.StringVar(value="light")
+        self.create_theme_switcher()
+        
+        # Model section with improved styling
         model_frame = ttk.LabelFrame(self.left_panel, text="Model", padding=10)
         model_frame.pack(fill=tk.X, pady=5)
         
@@ -84,7 +99,7 @@ class CarDetectionApp:
         model_path_frame.pack(fill=tk.X, pady=5)
         ttk.Entry(model_path_frame, textvariable=self.model_path).pack(side=tk.LEFT, fill=tk.X, expand=True)
         ttk.Button(model_path_frame, text="Browse", command=self.browse_model).pack(side=tk.RIGHT)
-        ttk.Button(model_frame, text="Load Model", command=self.load_model).pack(fill=tk.X)
+        ttk.Button(model_frame, text="Load Model", command=self.load_model, style="Accent.TButton").pack(fill=tk.X)
         
         # Detection settings
         settings_frame = ttk.LabelFrame(self.left_panel, text="Detection Settings", padding=10)
@@ -100,11 +115,25 @@ class CarDetectionApp:
         vis_combo = ttk.Combobox(settings_frame, textvariable=self.visualization_mode, values=modes)
         vis_combo.pack(fill=tk.X, pady=5)
         
-        # Source section
+        # Source section với nút hiện đại và icon
         source_frame = ttk.LabelFrame(self.left_panel, text="Source", padding=10)
         source_frame.pack(fill=tk.X, pady=5)
         
-        ttk.Button(source_frame, text="Open Image", command=self.open_image).pack(fill=tk.X, pady=2)
+        # Đường dẫn tới thư mục assets
+        assets_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets")
+        
+        # Tạo thư mục assets nếu chưa tồn tại
+        os.makedirs(assets_dir, exist_ok=True)
+        
+        # Tạo các nút với icon (nếu có)
+        image_icon = os.path.join(assets_dir, "image_icon.png")
+        video_icon = os.path.join(assets_dir, "video_icon.png")
+        webcam_icon = os.path.join(assets_dir, "webcam_icon.png")
+        stop_icon = os.path.join(assets_dir, "stop_icon.png")
+        save_icon = os.path.join(assets_dir, "save_icon.png")
+        
+        # Nếu chưa có icon, sử dụng nút thông thường
+        ttk.Button(source_frame, text="Open Image", command=self.open_image, style="Accent.TButton").pack(fill=tk.X, pady=2)
         ttk.Button(source_frame, text="Open Video", command=self.open_video).pack(fill=tk.X, pady=2)
         ttk.Button(source_frame, text="Open Webcam", command=self.open_webcam).pack(fill=tk.X, pady=2)
         ttk.Button(source_frame, text="Stop Processing", command=self.stop).pack(fill=tk.X, pady=2)
@@ -187,6 +216,7 @@ class CarDetectionApp:
         
         self.status_var.set(f"Processing image: {os.path.basename(file_path)}")
         self.progress.start()
+        self.show_loading_animation()
         
         def process_image_thread():
             try:
@@ -496,24 +526,180 @@ class CarDetectionApp:
                 # Add slight delay to ensure canvas has been resized
                 self.root.after(100, lambda: self.display_image(self.current_frame))
 
+    def create_rounded_button(self, parent, text, command, icon_path=None):
+        """Tạo nút với viền bo tròn và icon"""
+        btn_frame = ttk.Frame(parent)
+        
+        # Tạo nút với style tùy chỉnh
+        button = ttk.Button(btn_frame, text=text, command=command, style="Rounded.TButton")
+        
+        # Thêm icon nếu có
+        if icon_path and os.path.exists(icon_path):
+            try:
+                icon = Image.open(icon_path).resize((20, 20))
+                photo = ImageTk.PhotoImage(icon)
+                button.image = photo  # Giữ tham chiếu
+                button.configure(image=photo, compound=tk.LEFT, padding=(5, 5))
+            except Exception as e:
+                print(f"Could not load icon {icon_path}: {e}")
+        
+        button.pack(fill=tk.X, padx=5, pady=5)
+        return btn_frame
+
+    def create_gradient_header(self, parent, text, start_color="#007BFF", end_color="#00BFFF"):
+        """Tạo header với gradient background"""
+        header_frame = ttk.Frame(parent)
+        header_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        # Canvas cho gradient
+        canvas_height = 40
+        canvas = tk.Canvas(header_frame, height=canvas_height, bd=0, highlightthickness=0)
+        canvas.pack(fill=tk.X)
+        
+        # Vẽ gradient
+        width = parent.winfo_screenwidth()  # Sử dụng chiều rộng màn hình
+        for i in range(canvas_height):
+            # Convert color từ HEX sang RGB
+            r1, g1, b1 = parent.winfo_rgb(start_color)
+            r2, g2, b2 = parent.winfo_rgb(end_color)
+            # Tính toán màu gradient
+            r = (r1 + int((r2-r1) * i/canvas_height)) // 256
+            g = (g1 + int((g2-g1) * i/canvas_height)) // 256
+            b = (b1 + int((b2-b1) * i/canvas_height)) // 256
+            color = f'#{r:02x}{g:02x}{b:02x}'
+            canvas.create_line(0, i, width, i, fill=color)
+        
+        # Thêm text vào header
+        canvas.create_text(
+            width // 2, canvas_height // 2, 
+            text=text, 
+            fill="white", 
+            font=("Segoe UI", 14, "bold")
+        )
+        
+        return header_frame
+
+    def setup_styles(self):
+        """Thiết lập styles cho UI elements"""
+        style = ttk.Style()
+        
+        # Button styles
+        style.configure("Accent.TButton", background="#007BFF", foreground="white")
+        style.map("Accent.TButton",
+                  background=[('active', '#0069D9'), ('disabled', '#6C757D')],
+                  foreground=[('active', 'white'), ('disabled', '#A9A9A9')])
+        
+        # Frame styles
+        style.configure("Card.TFrame", background="#FFFFFF", relief=tk.RAISED, borderwidth=1)
+        
+        # Label styles
+        style.configure("Title.TLabel", font=("Segoe UI", 14, "bold"))
+        style.configure("Subtitle.TLabel", font=("Segoe UI", 12))
+
+    def create_theme_switcher(self):
+        """Tạo công tắc chuyển đổi theme dark/light"""
+        theme_frame = ttk.Frame(self.left_panel)
+        theme_frame.pack(fill=tk.X, pady=5)
+        
+        theme_switch = ttk.Checkbutton(
+            theme_frame, 
+            text="Dark Mode", 
+            variable=self.theme_mode,
+            onvalue="dark", 
+            offvalue="light",
+            command=self.toggle_theme
+        )
+        theme_switch.pack(side=tk.RIGHT)
+
+    def toggle_theme(self):
+        """Chuyển đổi giữa dark mode và light mode"""
+        if self.theme_mode.get() == "dark":
+            # Áp dụng dark theme
+            style = ttk.Style()
+            style.theme_use("equilux")  # Sử dụng theme tối
+            self.canvas.config(bg="#222222")
+        else:
+            # Áp dụng light theme
+            style = ttk.Style()
+            style.theme_use("arc")  # Sử dụng theme sáng
+            self.canvas.config(bg="black")
+
+    def show_loading_animation(self):
+        """Hiển thị animation khi loading"""
+        self.progress.start()
+        self.status_var.set("Processing... Please wait")
+        
+        # Hiệu ứng loading
+        loading_text = "Loading"
+        for _ in range(3):
+            for i in range(4):
+                dots = "." * i
+                self.status_var.set(f"{loading_text}{dots}")
+                self.root.update()
+                time.sleep(0.2)
+
+    def create_menu(self):
+        """Tạo thanh menu cho ứng dụng"""
+        menu_bar = tk.Menu(self.root)
+        
+        file_menu = tk.Menu(menu_bar, tearoff=0)
+        file_menu.add_command(label="Open Image", command=self.open_image)
+        file_menu.add_command(label="Open Video", command=self.open_video)
+        file_menu.add_command(label="Open Webcam", command=self.open_webcam)
+        file_menu.add_separator()
+        file_menu.add_command(label="Save Current Frame", command=self.save_frame)
+        file_menu.add_separator()
+        file_menu.add_command(label="Exit", command=self.root.quit)
+        menu_bar.add_cascade(label="File", menu=file_menu)
+        
+        view_menu = tk.Menu(menu_bar, tearoff=0)
+        view_menu.add_radiobutton(label="Standard View", variable=self.visualization_mode, value="standard")
+        view_menu.add_radiobutton(label="Blur Background", variable=self.visualization_mode, value="blur_bg")
+        view_menu.add_radiobutton(label="Heatmap", variable=self.visualization_mode, value="heatmap")
+        view_menu.add_radiobutton(label="Edge Enhancement", variable=self.visualization_mode, value="edge")
+        menu_bar.add_cascade(label="View", menu=view_menu)
+        
+        help_menu = tk.Menu(menu_bar, tearoff=0)
+        help_menu.add_command(label="About", command=self.show_about)
+        menu_bar.add_cascade(label="Help", menu=help_menu)
+        
+        self.root.config(menu=menu_bar)
+
+    def show_about(self):
+        """Hiển thị thông tin về ứng dụng"""
+        messagebox.showinfo(
+            "About Car Detection",
+            "Car Detection using YOLOv8\n\n"
+            "This application detects cars in images, videos, and webcam feeds "
+            "using the YOLOv8 object detection model.\n\n"
+            "© 2023 Digital Image Processing"
+        )
+
 
 def main():
     """Main function"""
-    # Create the root window
-    root = tk.Tk()
-    
-    # Set theme (if ttk theme extension is available)
     try:
-        from ttkthemes import ThemedTk
-        root = ThemedTk(theme="arc")
-    except:
-        pass
-    
-    # Create the application
-    app = CarDetectionApp(root)
-    
-    # Start the main loop
-    root.mainloop()
+        # Sử dụng ThemedTk thay vì Tk thông thường
+        root = ThemedTk(theme="arc")  # Các theme khác: breeze, equilux, ubuntu, radiance
+        root.title("Car Detection using YOLO")
+        
+        # Thiết lập style
+        style = ttk.Style()
+        style.configure("TButton", font=("Segoe UI", 10))
+        style.configure("TLabel", font=("Segoe UI", 10))
+        style.configure("TFrame", background=style.lookup("TFrame", "background"))
+        
+        # Tạo application
+        app = CarDetectionApp(root)
+        
+        # Chạy main loop
+        root.mainloop()
+    except Exception as e:
+        print(f"Error initializing GUI: {e}")
+        # Fallback to standard Tk
+        root = tk.Tk()
+        app = CarDetectionApp(root)
+        root.mainloop()
 
 
 if __name__ == "__main__":
