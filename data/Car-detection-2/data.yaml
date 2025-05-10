@@ -1,0 +1,12 @@
+names:
+- car
+nc: 1
+roboflow:
+  license: CC BY 4.0
+  project: car-detection-nxsxm-zicrj
+  url: https://universe.roboflow.com/dip2025/car-detection-nxsxm-zicrj/dataset/2
+  version: 2
+  workspace: dip2025
+test: ../test/images
+train: ../train/images
+val: ../valid/images
